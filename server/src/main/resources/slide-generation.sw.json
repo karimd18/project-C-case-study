@@ -1,0 +1,80 @@
+{
+  "id": "slideGeneration",
+  "version": "1.0",
+  "name": "Slide Generation Workflow",
+  "description": "Workflow to generate consulting slides from text input",
+  "start": "ExtractHeader",
+  "states": [
+    {
+      "name": "ExtractHeader",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "extractHeaderAction",
+          "functionRef": {
+            "refName": "extractHeaderFunction",
+            "arguments": {
+              "text": "${ .userInput }"
+            }
+          }
+        }
+      ],
+      "transition": "AnalyzeTopic"
+    },
+    {
+      "name": "AnalyzeTopic",
+      "type": "switch",
+      "dataConditions": [
+        {
+          "condition": "${ .header contains \"cost\" or .header contains \"budget\" }",
+          "transition": "DetermineVisual"
+        },
+        {
+          "condition": "${ .header contains \"time\" or .header contains \"schedule\" }",
+          "transition": "DetermineVisual"
+        }
+      ],
+      "defaultCondition": {
+        "transition": "DetermineVisual"
+      }
+    },
+    {
+      "name": "DetermineVisual",
+      "type": "switch",
+      "dataConditions": [
+        {
+          "condition": "${ .header contains \"process\" }",
+          "transition": "FormatBullets"
+        }
+      ],
+      "defaultCondition": {
+        "transition": "FormatBullets"
+      }
+    },
+    {
+      "name": "FormatBullets",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "formatBulletsAction",
+          "functionRef": {
+            "refName": "formatBulletsFunction"
+          }
+        }
+      ],
+      "end": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "extractHeaderFunction",
+      "type": "custom",
+      "operation": "service:com.projectc.service.SlideService::extractHeader"
+    },
+    {
+      "name": "formatBulletsFunction",
+      "type": "custom",
+      "operation": "service:com.projectc.service.SlideService::extractBullets"
+    }
+  ]
+}
