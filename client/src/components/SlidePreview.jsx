@@ -1,10 +1,17 @@
 import React from 'react';
 
+import HtmlSlidePreview from './HtmlSlidePreview';
+
 const SlidePreview = ({ data }) => {
   if (!data) return null;
 
+  // Prefer HTML Slide if available (Designer V2)
+  if (data.htmlCode) {
+      return <HtmlSlidePreview htmlContent={data.htmlCode} />;
+  }
+
   const { slideHeader, header, title, slideTitle, bullets, visualSuggestion, visualReasoning, actionTitle, topicLabel } = data;
-  
+
   // Handle both old (slideHeader/header) and new (actionTitle) field names for compatibility
   const displayHeader = actionTitle || header || slideHeader || "Untitled Slide";
   const displayTitle = topicLabel || title || slideTitle || "Strategic Overview";

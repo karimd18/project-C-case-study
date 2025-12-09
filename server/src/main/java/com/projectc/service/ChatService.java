@@ -54,4 +54,12 @@ public class ChatService {
     public List<ChatSession> getUserSessions(String userId) {
         return ChatSession.list("userId", userId);
     }
+
+    public boolean deleteSession(String sessionId) {
+        try {
+            return ChatSession.deleteById(new ObjectId(sessionId));
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

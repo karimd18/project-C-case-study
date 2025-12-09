@@ -63,31 +63,24 @@ public class SlideResource {
 
             // 2. Persist History (Short Transaction)
             try {
-                io.quarkus.narayana.jta.QuarkusTransaction.requiringNew().run(() -> {
-                    try {
-                        String jsonEntry = objectMapper.writeValueAsString(response);
-                        GenerationHistory history = new GenerationHistory(null, request.rawText(), jsonEntry,
-                                response.actionTitle());
-                        history.persist();
+                String jsonEntry = objectMapper.writeValueAsString(response);
+                GenerationHistory history = new GenerationHistory(null, request.rawText(), jsonEntry,
+                        response.actionTitle());
+                history.persist();
 
-                        // 3. Update Chat Session if exists
-                        if (request.sessionId() != null) {
-                            chatService.addMessage(request.sessionId(), "user", request.rawText());
-                            chatService.addMessage(request.sessionId(), "assistant",
-                                    "Generated slide: " + response.actionTitle());
+                // 3. Update Chat Session if exists
+                if (request.sessionId() != null) {
+                    chatService.addMessage(request.sessionId(), "user", request.rawText());
+                    chatService.addMessage(request.sessionId(), "assistant",
+                            "Generated slide: " + response.actionTitle() + " #SLIDE_ID:" + history.id.toString());
 
-                            // 4. Update Title if it's the first message (roughly)
-                            com.projectc.model.ChatSession session = chatService.getSession(request.sessionId());
-                            if (session != null && "New Conversation".equals(session.title)) {
-                                String newTitle = slideService.generateTitle(request.rawText());
-                                chatService.updateTitle(request.sessionId(), newTitle);
-                            }
-                        }
-
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
+                    // 4. Update Title if it's the first message (roughly)
+                    com.projectc.model.ChatSession session = chatService.getSession(request.sessionId());
+                    if (session != null && "New Conversation".equals(session.title)) {
+                        String newTitle = slideService.generateTitle(request.rawText());
+                        chatService.updateTitle(request.sessionId(), newTitle);
                     }
-                });
+                }
             } catch (Exception e) {
                 // Log persistence error but return successful response to user
                 System.err.println("Persistence Failed: " + e.getMessage());
@@ -121,6 +114,22 @@ public class SlideResource {
         return Response.ok(session).build();
     }
 
+    @DELETE
+    @Path("/chats/{id}")
+    public Response deleteChat(@PathParam("id") String id) {
+        boolean deleted = chatService.deleteSession(id);
+        if (!deleted)
+            return Response.status(Response.Status.NOT_FOUND).build();
+        return Response.noContent().build();
+    }
+
+    @PUT
+    @Path("/chats/{id}")
+    public Response updateChatTitle(@PathParam("id") String id, UpdateChatRequest request) {
+        chatService.updateTitle(id, request.title());
+        return Response.ok().build();
+    }
+
     @POST
     @Path("/generate")
     public Response generate(GenerateRequest request) {
@@ -130,30 +139,23 @@ public class SlideResource {
 
             // Persist
             try {
-                io.quarkus.narayana.jta.QuarkusTransaction.requiringNew().run(() -> {
-                    try {
-                        String jsonEntry = objectMapper.writeValueAsString(response);
-                        GenerationHistory history = new GenerationHistory(null, request.rawText(), jsonEntry,
-                                response.actionTitle());
-                        history.persist();
+                String jsonEntry = objectMapper.writeValueAsString(response);
+                GenerationHistory history = new GenerationHistory(null, request.rawText(), jsonEntry,
+                        response.actionTitle());
+                history.persist();
 
-                        if (request.sessionId() != null) {
-                            chatService.addMessage(request.sessionId(), "user", request.rawText());
-                            chatService.addMessage(request.sessionId(), "assistant",
-                                    "Generated slide: " + response.actionTitle());
+                if (request.sessionId() != null) {
+                    chatService.addMessage(request.sessionId(), "user", request.rawText());
+                    chatService.addMessage(request.sessionId(), "assistant",
+                            "Generated slide: " + response.actionTitle() + " #SLIDE_ID:" + history.id.toString());
 
-                            // Auto Rename Title
-                            com.projectc.model.ChatSession session = chatService.getSession(request.sessionId());
-                            if (session != null && "New Conversation".equals(session.title)) {
-                                String newTitle = slideService.generateTitle(request.rawText());
-                                chatService.updateTitle(request.sessionId(), newTitle);
-                            }
-                        }
-
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
+                    // Auto Rename Title
+                    com.projectc.model.ChatSession session = chatService.getSession(request.sessionId());
+                    if (session != null && "New Conversation".equals(session.title)) {
+                        String newTitle = slideService.generateTitle(request.rawText());
+                        chatService.updateTitle(request.sessionId(), newTitle);
                     }
-                });
+                }
             } catch (Exception e) {
                 System.err.println("Persistence Failed (Generate): " + e.getMessage());
             }
@@ -173,8 +175,11 @@ public class SlideResource {
 
     @GET
     @Path("/history/{id}")
-    public Response getHistory(@PathParam("id") Long id) {
-        GenerationHistory history = GenerationHistory.findById(id);
+    public Response getHistory(@PathParam("id") String id) {
+        if (id == null || !org.bson.types.ObjectId.isValid(id)) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        GenerationHistory history = GenerationHistory.findById(new org.bson.types.ObjectId(id));
         if (history == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
@@ -190,5 +195,8 @@ public class SlideResource {
     }
 
     public record StartChatRequest(String userId, String title) {
+    }
+
+    public record UpdateChatRequest(String title) {
     }
 }

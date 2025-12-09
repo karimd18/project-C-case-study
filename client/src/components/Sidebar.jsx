@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { PanelLeftClose, PanelLeftOpen, LogOut, Settings, Plus, MessageSquare } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, LogOut, Settings, Plus, MessageSquare, Edit2, Trash2, Check, X } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
@@ -10,6 +10,8 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [history, setHistory] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
 
   const handleHistorySelect = (item) => {
     navigate(`/chat/${item.id}`);
@@ -28,18 +30,53 @@ const Sidebar = () => {
       if(!user) return;
       
       const token = localStorage.getItem('token');
-      // Fetch Chats instead of History
       const res = await fetch(`http://localhost:8080/api/chats?userId=${user.email}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        // Sort by updatedAt descending
         setHistory(data.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
       }
     } catch (err) {
       console.error("Failed to load history", err);
     }
+  };
+
+  const handleDelete = async (id) => {
+      if(!window.confirm("Delete this conversation?")) return;
+      try {
+          const token = localStorage.getItem('token');
+          await fetch(`http://localhost:8080/api/chats/${id}`, {
+             method: 'DELETE',
+             headers: { 'Authorization': `Bearer ${token}` }
+          });
+          setHistory(prev => prev.filter(item => item.id !== id));
+          if (window.location.pathname.includes(id)) {
+              navigate('/chat');
+          }
+      } catch (err) {
+          console.error("Delete failed", err);
+      }
+  };
+
+  const startEditing = (item) => {
+      setEditingId(item.id);
+      setEditTitle(item.title);
+  };
+
+  const handleRename = async (id) => {
+      try {
+          const token = localStorage.getItem('token');
+          await fetch(`http://localhost:8080/api/chats/${id}`, {
+             method: 'PUT',
+             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+             body: JSON.stringify({ title: editTitle })
+          });
+          setHistory(prev => prev.map(item => item.id === id ? { ...item, title: editTitle } : item));
+          setEditingId(null);
+      } catch (err) {
+          console.error("Rename failed", err);
+      }
   };
 
   const isDark = theme === 'dark';
@@ -83,19 +120,55 @@ const Sidebar = () => {
         {!collapsed && <div className={`text-xs font-semibold ${textColor} uppercase tracking-wider mb-3 px-2`}>Recent Chats</div>}
         <ul className="space-y-1">
             {history.map((item) => (
-              <li key={item.id}>
-                <button 
-                  onClick={() => handleHistorySelect(item)}
-                  title={item.title}
-                  className={`w-full text-left px-3 py-3 rounded-xl ${hoverColor} group transition-all flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}
-                >
-                   <MessageSquare size={18} className={textColor} />
-                   {!collapsed && (
-                       <span className={`truncate text-sm font-medium ${activeColor} group-hover:text-primary transition-colors`}>
-                           {item.title}
-                       </span>
-                   )}
-                </button>
+              <li key={item.id} className="group relative">
+                {editingId === item.id ? (
+                    <div className={`px-3 py-2 rounded-xl bg-white shadow-sm border border-primary/20 flex items-center gap-2 ${collapsed ? 'justify-center' : ''}`}>
+                        <input 
+                            autoFocus
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleRename(item.id)}
+                            className="bg-transparent border-none focus:ring-0 text-sm w-full p-0 text-slate-900 font-medium"
+                        />
+                        <button onClick={() => handleRename(item.id)} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                            <Check size={14} />
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="text-red-400 hover:bg-red-50 p-1 rounded">
+                            <X size={14} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="relative">
+                        <button 
+                          onClick={() => handleHistorySelect(item)}
+                          title={item.title}
+                          className={`w-full text-left px-3 py-3 rounded-xl ${hoverColor} group-hover:bg-gray-200/50 transition-all flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}
+                        >
+                           <MessageSquare size={18} className={textColor} />
+                           {!collapsed && (
+                               <span className={`truncate text-sm font-medium ${activeColor} group-hover:text-primary transition-colors pr-12`}>
+                                   {item.title}
+                               </span>
+                           )}
+                        </button>
+                        {!collapsed && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); startEditing(item); }}
+                                    className="p-1.5 text-gray-400 hover:text-primary hover:bg-white rounded-md shadow-sm transition-all"
+                                >
+                                    <Edit2 size={12} />
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white rounded-md shadow-sm transition-all"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
               </li>
             ))}
         </ul>

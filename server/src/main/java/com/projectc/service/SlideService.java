@@ -139,7 +139,7 @@ public class SlideService {
             String prompt = "Summarize this request into a short, punchy 3-5 word title for a slide presentation history list. Do not use quotes. Request: "
                     + userInput;
             AnthropicClient.AnthropicRequest request = new AnthropicClient.AnthropicRequest(
-                    model, 100, List.of(new AnthropicClient.Message("user", prompt)), null);
+                    model, 100, List.of(new AnthropicClient.Message("user", prompt)), "");
             return callClaude(request).trim();
         } catch (Exception e) {
             LOG.error("Failed to generate title", e);

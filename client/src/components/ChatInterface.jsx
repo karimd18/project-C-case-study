@@ -84,11 +84,36 @@ const ChatInterface = () => {
             });
             if (res.ok) {
                 const session = await res.json();
-                const history = session.messages.map(msg => ({
-                    role: msg.role === 'user' ? 'user' : 'ai',
-                    content: msg.content,
-                    type: msg.content.includes("Generated slide:") ? 'slide' : 'text',
-                    slideId: msg.content.includes("Generated slide:") ? 1 : null // Placeholder ID logic
+                
+                // Parallel fetch for history items
+                const history = await Promise.all(session.messages.map(async msg => {
+                    let slideData = null;
+                    let slideId = null;
+                    let content = msg.content;
+                    
+                    const match = content.match(/#SLIDE_ID:([a-f\d]+)/);
+                    if (match) {
+                         slideId = match[1];
+                         content = content.replace(match[0], '').trim();
+                         try {
+                             const hRes = await fetch(`http://localhost:8080/api/history/${slideId}`);
+                             if (hRes.ok) {
+                                 const hItem = await hRes.json();
+                                 slideData = JSON.parse(hItem.jsonOutput);
+                             }
+                         } catch(e) { console.error("Failed to load slide history", e); }
+                    } else if (content.includes("Generated slide:")) {
+                         // Fallback for legacy messages
+                         slideId = 1; 
+                    }
+
+                    return {
+                        role: msg.role === 'user' ? 'user' : 'ai',
+                        content: content,
+                        type: slideId ? 'slide' : 'text',
+                        slideId: slideId,
+                        slideData: slideData
+                    };
                 }));
                 setMessages(history);
             }

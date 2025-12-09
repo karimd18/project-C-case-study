@@ -28,8 +28,8 @@ Your task is to generate a **Single HTML File** that renders a **static, high-de
   - `maintainAspectRatio: false` (CRITICAL for responsiveness inside fixed height).
   - Use `animation: false` (CRITICAL for static rendering).
   - Use `plugins: { legend: { position: 'bottom' } }`.
-  - Colors: Use professional hex codes (e.g., `#0f172a` for Slate-900, `#3b82f6` for Blue-500).
-
+  - Do not include comments or documentation inside the code
+  - colors should be chosen based on what the context fits best
 ---
 
 ### **GOLD STANDARD EXAMPLE**
