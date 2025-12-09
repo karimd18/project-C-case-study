@@ -138,22 +138,36 @@ public class SlideResource {
             SlideService.SlideResponse response = slideService.generateSlide(request.rawText());
 
             // Persist
+            // Persist
             try {
-                String jsonEntry = objectMapper.writeValueAsString(response);
-                GenerationHistory history = new GenerationHistory(null, request.rawText(), jsonEntry,
-                        response.actionTitle());
-                history.persist();
+                if (response.htmlCode() != null && !response.htmlCode().isEmpty()) {
+                    // It's a visual slide
+                    String jsonEntry = objectMapper.writeValueAsString(response);
+                    GenerationHistory history = new GenerationHistory(null, request.rawText(), jsonEntry,
+                            response.actionTitle());
+                    history.persist();
 
-                if (request.sessionId() != null) {
-                    chatService.addMessage(request.sessionId(), "user", request.rawText());
-                    chatService.addMessage(request.sessionId(), "assistant",
-                            "Generated slide: " + response.actionTitle() + " #SLIDE_ID:" + history.id.toString());
+                    if (request.sessionId() != null) {
+                        chatService.addMessage(request.sessionId(), "user", request.rawText());
+                        chatService.addMessage(request.sessionId(), "assistant",
+                                "Generated slide: " + response.actionTitle() + " #SLIDE_ID:" + history.id.toString());
 
-                    // Auto Rename Title
-                    com.projectc.model.ChatSession session = chatService.getSession(request.sessionId());
-                    if (session != null && "New Conversation".equals(session.title)) {
-                        String newTitle = slideService.generateTitle(request.rawText());
-                        chatService.updateTitle(request.sessionId(), newTitle);
+                        // Auto Rename Title for Slide
+                        com.projectc.model.ChatSession session = chatService.getSession(request.sessionId());
+                        if (session != null && "New Conversation".equals(session.title)) {
+                            String newTitle = slideService.generateTitle(request.rawText());
+                            chatService.updateTitle(request.sessionId(), newTitle);
+                        }
+                    }
+                } else {
+                    // It's just a conversation/greeting
+                    if (request.sessionId() != null) {
+                        chatService.addMessage(request.sessionId(), "user", request.rawText());
+                        // Use conversationText (or fallback if null, though it shouldn't be for CHAT
+                        // intent)
+                        String reply = response.conversationText() != null ? response.conversationText()
+                                : "I processed your request.";
+                        chatService.addMessage(request.sessionId(), "assistant", reply);
                     }
                 }
             } catch (Exception e) {

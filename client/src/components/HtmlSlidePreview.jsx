@@ -81,6 +81,7 @@ export default function HtmlSlidePreview({ htmlContent }) {
       </div>
 
       {/* Modal */}
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setIsModalOpen(false)}>
             <div className="relative w-full max-w-[90vw] aspect-video bg-white rounded-xl overflow-hidden shadow-2xl scale-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
@@ -93,7 +94,46 @@ export default function HtmlSlidePreview({ htmlContent }) {
                     </svg>
                 </button>
                 <iframe
-                    srcDoc={htmlContent}
+                    srcDoc={htmlContent
+                        // Inject Styles and Script
+                        .replace("</head>", `
+                            <style>
+                                html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+                                body { display: flex; align-items: center; justify-content: center; background: #f8fafc; }
+                                #slide-container {
+                                    width: 1280px;
+                                    height: 720px;
+                                    flex-shrink: 0;
+                                    background: white;
+                                    transform-origin: center center;
+                                    overflow: hidden;
+                                    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                                }
+                            </style>
+                            <script>
+                                function fit() {
+                                    const container = document.getElementById('slide-container');
+                                    if (!container) return;
+                                    
+                                    const targetW = 1280;
+                                    const targetH = 720;
+                                    const winW = window.innerWidth;
+                                    const winH = window.innerHeight;
+                                    
+                                    // Calculate scale with small padding buffer
+                                    const scale = Math.min(winW / targetW, winH / targetH) * 0.95;
+                                    
+                                    container.style.transform = 'scale(' + scale + ')';
+                                }
+                                window.addEventListener('resize', fit);
+                                window.addEventListener('load', fit);
+                                setInterval(fit, 500);
+                            </script>
+                        </head>`)
+                        // Wrap Body Content
+                        .replace(/<body([^>]*)>/i, '<body$1><div id="slide-container">')
+                        .replace(/<\/body>/i, '</div></body>')
+                    }
                     className="w-full h-full border-none"
                     title="Full Slide View"
                     sandbox="allow-scripts allow-same-origin"

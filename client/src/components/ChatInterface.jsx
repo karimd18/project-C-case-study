@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Send, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useChat } from '../context/ChatContext';
 import ReactMarkdown from 'react-markdown';
 import SlidePreview from './SlidePreview';
 
 const ChatInterface = () => {
     const { sessionId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     const { theme } = useTheme();
+    const { triggerRefresh } = useChat();
+    
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -53,7 +57,7 @@ const ChatInterface = () => {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, loading]); // Added loading to scroll to bottom when loading starts
 
     // Simulated Loading Interval
     useEffect(() => {
@@ -62,7 +66,7 @@ const ChatInterface = () => {
             setLoadingStep(0);
             interval = setInterval(() => {
                 setLoadingStep(prev => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
-            }, 3000); // Change step every 3 seconds
+            }, 3000); 
         }
         return () => clearInterval(interval);
     }, [loading]);
@@ -107,15 +111,27 @@ const ChatInterface = () => {
                          slideId = 1; 
                     }
 
+                    // Strict check: Only treat as slide if we have valid HTML content (or legacy data with explicit title)
+                    // The user specifically requested "normal response when there is no slide design which is an html code"
+                    const isValidSlide = slideId && slideData && (slideData.htmlCode || (slideData.title && slideData.title !== 'Unexpected Error'));
+
                     return {
                         role: msg.role === 'user' ? 'user' : 'ai',
                         content: content,
-                        type: slideId ? 'slide' : 'text',
-                        slideId: slideId,
-                        slideData: slideData
+                        type: isValidSlide ? 'slide' : 'text',
+                        slideId: isValidSlide ? slideId : null,
+                        slideData: isValidSlide ? slideData : null
                     };
                 }));
-                setMessages(history);
+
+                // Handle OPTIMISTIC INITIAL MESSAGE from Navigation State
+                // If history is empty but we have an initial message in location state, show it
+                if (history.length === 0 && location.state?.initialMessage) {
+                    setMessages([{ role: 'user', content: location.state.initialMessage }]);
+                    setLoading(true);
+                } else {
+                     setMessages(history);
+                }
             }
         } catch (err) {
             console.error("Failed to load chat", err);
@@ -130,6 +146,7 @@ const ChatInterface = () => {
         if (!activeSessionId) {
             try {
                 const token = localStorage.getItem('token');
+                // 1. Create Session
                 const res = await fetch('http://localhost:8080/api/chats', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -137,39 +154,69 @@ const ChatInterface = () => {
                 });
                 const newSession = await res.json();
                 activeSessionId = newSession.id;
-                navigate(`/chat/${newSession.id}`, { replace: true });
+                
+                // 2. Notify Sidebar
+                triggerRefresh(); 
+                
+                // 3. Navigate immediately? 
+                // If we navigate now, we unmount.
+                // We should probably start the generation first?
+                // But we want the UI to update.
+                
+                // STRATEGY: Navigate immediately. Pass 'startGeneration' flag.
+                navigate(`/chat/${newSession.id}`, { 
+                    replace: true, 
+                    state: { 
+                        initialMessage: input,
+                        shouldGenerate: true // Flag to tell the new instance to run generation
+                    } 
+                });
+                return; // Stop here, the new instance will handle generation
+
             } catch (err) {
                 console.error("Failed to create session", err);
                 return;
             }
         }
 
+        // Standard Send (Existing Session)
         const userMsg = { role: 'user', content: input };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
-
+        performGeneration(activeSessionId, input);
+    };
+    
+    // Helper for generation (called by handleSend or by effect)
+    const performGeneration = async (sid, text) => {
         try {
             const token = localStorage.getItem('token');
-            // User requested to use /generate directly, bypassing intent analysis
             const genRes = await fetch('http://localhost:8080/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ rawText: input, sessionId: activeSessionId })
+                body: JSON.stringify({ rawText: text, sessionId: sid })
             });
 
             if (!genRes.ok) throw new Error("Generation failed");
 
             const slideData = await genRes.json();
             
+            // Check validity before deciding it's a slide
+            const isValidSlide = slideData && (slideData.htmlCode || (slideData.title && slideData.title !== 'Unexpected Error'));
+
             setMessages(prev => [...prev, { 
                 role: 'ai', 
-                content: "I've generated a slide for you based on that.",
-                type: 'slide',
-                slideId: slideData.id,
-                slideData: slideData
+                content: isValidSlide 
+                    ? "I've generated a slide for you based on that." 
+                    : (slideData.actionTitle || "I analyzed your request but couldn't generate a visual design."),
+                type: isValidSlide ? 'slide' : 'text',
+                slideId: isValidSlide ? slideData.id : null,
+                slideData: isValidSlide ? slideData : null
             }]);
-            setCurrentSlideId(slideData); // Trigger Preview
+            
+            if (isValidSlide) {
+                setCurrentSlideId(slideData);
+            }
 
         } catch (error) {
             console.error("Chat error", error);
@@ -178,6 +225,22 @@ const ChatInterface = () => {
             setLoading(false);
         }
     };
+    
+    // EFFECT to handle "shouldGenerate" from navigation state
+    useEffect(() => {
+        if (location.state?.shouldGenerate && location.state?.initialMessage && sessionId) {
+            // Clean up state so we don't re-run on refresh
+            window.history.replaceState({}, document.title);
+            
+            // Set initial UI state
+            setMessages([{ role: 'user', content: location.state.initialMessage }]);
+            setInput(''); // Clear input just in case
+            setLoading(true);
+            
+            // Trigger Generation logic
+            performGeneration(sessionId, location.state.initialMessage);
+        }
+    }, [location.state, sessionId]);
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

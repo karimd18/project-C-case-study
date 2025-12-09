@@ -4,9 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { PanelLeftClose, PanelLeftOpen, LogOut, Settings, Plus, MessageSquare, Edit2, Trash2, Check, X } from 'lucide-react';
 
+import { useChat } from '../context/ChatContext';
+
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
+  const { refreshTrigger } = useChat(); // Consume Context
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [history, setHistory] = useState([]);
@@ -23,7 +26,7 @@ const Sidebar = () => {
   
   useEffect(() => {
     fetchHistory();
-  }, [user]);
+  }, [user, refreshTrigger]); // Add trigger dependency
 
   const fetchHistory = async () => {
     try {
