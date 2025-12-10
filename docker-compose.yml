@@ -1,0 +1,46 @@
+services:
+  # Database Service
+  mongo:
+    image: mongo:latest
+    container_name: projectc-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - projectc-network
+
+  # Backend Service
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: projectc-server
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://mongo:27017
+    depends_on:
+      - mongo
+    networks:
+      - projectc-network
+
+  # Frontend Service
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: projectc-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    networks:
+      - projectc-network
+
+volumes:
+  mongo-data:
+
+networks:
+  projectc-network:
+    driver: bridge
