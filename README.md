@@ -108,8 +108,7 @@ Since this is an MVP/Case Study, here is how the solution can be extended into a
 
 1.  **RAG Integration**: Connect the "Architect" agent to a vector database (Pinecone/Weaviate) containing the firm's past high-performing slides. This allows the tool to mimic the firm's specific voice and style.
 2.  **Multimodal Inputs**: consistency allows users to upload images (charts on a napkin) which the AI converts into digital slides.
-3.  **PPTX Export Service**: Add a microservice (Apache POI or python-pptx) to convert the HTML output into editable PowerPoint files.
-4.  **Team Collaboration**: Add WebSocket support for real-time multiplayer editing of the chat stream.
+3.  **Team Collaboration**: Add WebSocket support for real-time multiplayer editing of the chat stream.
 
 ---
 
