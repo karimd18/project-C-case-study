@@ -61,7 +61,8 @@ public class SlideService {
             String correctorTemplate = loadResource("/corrector-prompt.md");
             String correctorSystemPrompt = correctorTemplate
                     .replace("{{STRATEGIST_BRIEF}}", strategy.narrativeGoal)
-                    .replace("{{DESIGNER_CODE}}", designerOutput.htmlCode);
+                    .replace("{{DESIGNER_CODE}}", designerOutput.htmlCode)
+                    .replace("{{USER_REQUEST}}", userInput);
 
             DesignerResponse correctedOutput = callCorrector(userInput, correctorSystemPrompt);
 
